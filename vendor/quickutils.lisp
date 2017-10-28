@@ -2,7 +2,7 @@
 ;;;; See http://quickutil.org for details.
 
 ;;;; To regenerate:
-;;;; (qtlc:save-utils-as "quickutils.lisp" :utilities '(:CURRY :MAXF :RCURRY :READ-FILE-INTO-STRING :WITH-GENSYMS) :ensure-package T :package "BRIA.QUICKUTILS")
+;;;; (qtlc:save-utils-as "quickutils.lisp" :utilities '(:ALIST-PLIST :CURRY :MAXF :ONCE-ONLY :RCURRY :READ-FILE-INTO-STRING :WITH-GENSYMS) :ensure-package T :package "BRIA.QUICKUTILS")
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (unless (find-package "BRIA.QUICKUTILS")
@@ -13,11 +13,36 @@
 (in-package "BRIA.QUICKUTILS")
 
 (when (boundp '*utilities*)
-  (setf *utilities* (union *utilities* '(:MAKE-GENSYM-LIST :ENSURE-FUNCTION
-                                         :CURRY :MAXF :RCURRY :ONCE-ONLY
+  (setf *utilities* (union *utilities* '(:SAFE-ENDP :ALIST-PLIST
+                                         :MAKE-GENSYM-LIST :ENSURE-FUNCTION
+                                         :CURRY :MAXF :ONCE-ONLY :RCURRY
                                          :WITH-OPEN-FILE* :WITH-INPUT-FROM-FILE
                                          :READ-FILE-INTO-STRING
                                          :STRING-DESIGNATOR :WITH-GENSYMS))))
+
+  (declaim (inline safe-endp))
+  (defun safe-endp (x)
+    (declare (optimize safety))
+    (endp x))
+  
+
+  (defun alist-plist (alist)
+    "Returns a property list containing the same keys and values as the
+association list ALIST in the same order."
+    (let (plist)
+      (dolist (pair alist)
+        (push (car pair) plist)
+        (push (cdr pair) plist))
+      (nreverse plist)))
+
+  (defun plist-alist (plist)
+    "Returns an association list containing the same keys and values as the
+property list PLIST in the same order."
+    (let (alist)
+      (do ((tail plist (cddr tail)))
+          ((safe-endp tail) (nreverse alist))
+        (push (cons (car tail) (cadr tail)) alist))))
+  
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun make-gensym-list (length &optional (x "G"))
     "Returns a list of `length` gensyms, each generated as if with a call to `make-gensym`,
@@ -67,16 +92,6 @@ it is called with to `function`."
 maximum of its original value and `numbers`.")
   
 
-  (defun rcurry (function &rest arguments)
-    "Returns a function that applies the arguments it is called
-with and `arguments` to `function`."
-    (declare (optimize (speed 3) (safety 1) (debug 1)))
-    (let ((fn (ensure-function function)))
-      (lambda (&rest more)
-        (declare (dynamic-extent more))
-        (multiple-value-call fn (values-list more) (values-list arguments)))))
-  
-
   (defmacro once-only (specs &body forms)
     "Evaluates `forms` with symbols specified in `specs` rebound to temporary
 variables, ensuring that each initform is evaluated only once.
@@ -114,6 +129,16 @@ Example:
             ,(let ,(mapcar (lambda (n g) (list (car n) g))
                     names-and-forms gensyms)
                ,@forms)))))
+  
+
+  (defun rcurry (function &rest arguments)
+    "Returns a function that applies the arguments it is called
+with and `arguments` to `function`."
+    (declare (optimize (speed 3) (safety 1) (debug 1)))
+    (let ((fn (ensure-function function)))
+      (lambda (&rest more)
+        (declare (dynamic-extent more))
+        (multiple-value-call fn (values-list more) (values-list arguments)))))
   
 
   (defmacro with-open-file* ((stream filespec &key direction element-type
@@ -212,7 +237,7 @@ unique symbol the named variable will be bound to."
     `(with-gensyms ,names ,@forms))
   
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (export '(curry maxf rcurry read-file-into-string with-gensyms
-            with-unique-names)))
+  (export '(alist-plist plist-alist curry maxf once-only rcurry
+            read-file-into-string with-gensyms with-unique-names)))
 
 ;;;; END OF quickutils.lisp ;;;;

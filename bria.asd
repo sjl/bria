@@ -6,8 +6,14 @@
   :license "MIT/X11"
 
   :depends-on (:birch
+               :bordeaux-threads
+               :cl-interpol
+               :drakma
+               :flexi-streams
                :iterate
-               :losh)
+               :losh
+               :named-readtables
+               :yason)
 
   :serial t
   :components ((:module "vendor" :serial t
@@ -16,5 +22,6 @@
                (:file "package")
                (:module "src" :serial t
                 :components
-                ((:file "main")))))
+                ((:file "readtables")
+                 (:file "main")))))
 
