@@ -39,6 +39,9 @@
 (defun make-cache (ttl-seconds)
   (make-instance 'cache :ttl ttl-seconds))
 
+(defun cache-clear (cache)
+  (clrhash (cache-data cache)))
+
 (defun cache-set! (cache key value)
   (setf (gethash key (cache-data cache))
         (cons (+ (get-internal-real-time)
@@ -56,6 +59,9 @@
   (or (null timeout)
       (> (get-internal-real-time) timeout)))
 
+(defun cachedp (cache key)
+  (not (timeout-invalid-p (cache-get% cache key))))
+
 (defmacro cache-get (cache key &body body)
   "Get `key` from `cache` if present and valid, otherwise use and cache `body`."
   (once-only (cache key)
@@ -66,8 +72,19 @@
            ,value)))))
 
 
+;;;; Rate-Limiting ------------------------------------------------------------
+(defmacro define-rate-limited-function ((name seconds) arglist &body body)
+  (let ((cache (symb '* name '-rate-limiter*)))
+    `(progn
+       (defvar ,cache (make-cache ,seconds))
+       (defun ,name ,arglist
+         (if (cachedp ,cache t)
+          (values)
+          (cache-set! ,cache t (progn ,@body)))))))
+
+
 ;;;; Credentials --------------------------------------------------------------
-(defvar *credentials* nil) 
+(defvar *credentials* nil)
 (defun reload-credentials ()
   (setf *credentials* (read-form-from-file "creds")))
 
@@ -90,24 +107,6 @@
 
 
 (defclass bria-connection (birch:connection) ())
-
-(defun reply (message)
-  (birch:/privmsg *connection* *reply-to* message))
-
-(defun reply-temperature ()
-  (reply (format nil "It's about ~D° outside right now."
-                 (current-temperature 14604))))
-
-(defun reply-huh? ()
-  (reply "what?"))
-
-
-(defun try-handling-line (nick line)
-  (when (equal nick "sjl")
-    (let ((*reply-to* nick))
-      (cond
-        ((equal line "temp") (reply-temperature))
-        (t (reply-huh?))))))
 
 (defmethod birch:handle-event ((connection bria-connection)
                                (event birch:privmsg-event))
@@ -139,6 +138,33 @@
   (setf *running* nil))
 
 
+(defun reply (message)
+  (birch:/privmsg *connection* *reply-to* message))
+
+
+;;;; Programs -----------------------------------------------------------------
+(defun reply-temperature ()
+  (reply (format nil "It's about ~D° outside right now."
+                 (current-temperature 14604))))
+
+(defun reply-reload ()
+  (reply "Hang on...")
+  (if (reload)
+    (reply "Done.")
+    (reply "Slow down.")))
+
+(defun reply-huh? ()
+  (reply "what?"))
+
+(defun try-handling-line (nick line)
+  (when (equal nick "sjl")
+    (let ((*reply-to* nick))
+      (cond
+        ((equal line "temp") (reply-temperature))
+        ((equal line "reload") (reply-reload))
+        (t (reply-huh?))))))
+
+
 ;;;; Weather ------------------------------------------------------------------
 (defparameter *weather-cache* (make-cache (minutes 10)))
 
@@ -159,3 +185,8 @@
     (pget "temp" <>)
     (round <> 1)))
 
+
+;;;; Reload -------------------------------------------------------------------
+(define-rate-limited-function (reload 30) ()
+  (ql:quickload :bria)
+  t)

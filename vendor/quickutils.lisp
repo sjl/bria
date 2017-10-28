@@ -2,7 +2,7 @@
 ;;;; See http://quickutil.org for details.
 
 ;;;; To regenerate:
-;;;; (qtlc:save-utils-as "quickutils.lisp" :utilities '(:ALIST-PLIST :CURRY :MAXF :ONCE-ONLY :RCURRY :READ-FILE-INTO-STRING :WITH-GENSYMS) :ensure-package T :package "BRIA.QUICKUTILS")
+;;;; (qtlc:save-utils-as "quickutils.lisp" :utilities '(:ALIST-PLIST :CURRY :MAXF :ONCE-ONLY :RCURRY :READ-FILE-INTO-STRING :SYMB :WITH-GENSYMS) :ensure-package T :package "BRIA.QUICKUTILS")
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (unless (find-package "BRIA.QUICKUTILS")
@@ -17,7 +17,7 @@
                                          :MAKE-GENSYM-LIST :ENSURE-FUNCTION
                                          :CURRY :MAXF :ONCE-ONLY :RCURRY
                                          :WITH-OPEN-FILE* :WITH-INPUT-FROM-FILE
-                                         :READ-FILE-INTO-STRING
+                                         :READ-FILE-INTO-STRING :MKSTR :SYMB
                                          :STRING-DESIGNATOR :WITH-GENSYMS))))
 
   (declaim (inline safe-endp))
@@ -193,6 +193,23 @@ unless it's `nil`, which means the system default."
               :while (= bytes-read buffer-size)))))))
   
 
+  (defun mkstr (&rest args)
+    "Receives any number of objects (string, symbol, keyword, char, number), extracts all printed representations, and concatenates them all into one string.
+
+Extracted from _On Lisp_, chapter 4."
+    (with-output-to-string (s)
+      (dolist (a args) (princ a s))))
+  
+
+  (defun symb (&rest args)
+    "Receives any number of objects, concatenates all into one string with `#'mkstr` and converts them to symbol.
+
+Extracted from _On Lisp_, chapter 4.
+
+See also: `symbolicate`"
+    (values (intern (apply #'mkstr args))))
+  
+
   (deftype string-designator ()
     "A string designator type. A string designator is either a string, a symbol,
 or a character."
@@ -238,6 +255,6 @@ unique symbol the named variable will be bound to."
   
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (export '(alist-plist plist-alist curry maxf once-only rcurry
-            read-file-into-string with-gensyms with-unique-names)))
+            read-file-into-string symb with-gensyms with-unique-names)))
 
 ;;;; END OF quickutils.lisp ;;;;
