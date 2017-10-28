@@ -77,6 +77,8 @@
   (let ((cache (symb '* name '-rate-limiter*)))
     `(progn
        (defvar ,cache (make-cache ,seconds))
+       (defun ,(symb name '-ready-p) ()
+         (not (cachedp ,cache t)))
        (defun ,name ,arglist
          (if (cachedp ,cache t)
           (values)
@@ -148,10 +150,11 @@
                  (current-temperature 14604))))
 
 (defun reply-reload ()
-  (reply "Hang on...")
-  (if (reload)
-    (reply "Done.")
-    (reply "Slow down.")))
+  (if (reload-ready-p)
+    (progn (reply "Hang on...")
+           (reload)
+           (reply "Done."))
+    (reply "I was just reloaded, slow down.")))
 
 (defun reply-huh? ()
   (reply "what?"))
