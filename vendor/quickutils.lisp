@@ -2,7 +2,7 @@
 ;;;; See http://quickutil.org for details.
 
 ;;;; To regenerate:
-;;;; (qtlc:save-utils-as "quickutils.lisp" :utilities '(:ALIST-PLIST :CURRY :MAXF :ONCE-ONLY :RCURRY :READ-FILE-INTO-STRING :SYMB :WITH-GENSYMS) :ensure-package T :package "BRIA.QUICKUTILS")
+;;;; (qtlc:save-utils-as "quickutils.lisp" :utilities '(:ALIST-PLIST :CURRY :ENSURE-GETHASH :ENSURE-LIST :MAXF :ONCE-ONLY :RCURRY :READ-FILE-INTO-STRING :SYMB :WITH-GENSYMS) :ensure-package T :package "BRIA.QUICKUTILS")
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (unless (find-package "BRIA.QUICKUTILS")
@@ -15,7 +15,8 @@
 (when (boundp '*utilities*)
   (setf *utilities* (union *utilities* '(:SAFE-ENDP :ALIST-PLIST
                                          :MAKE-GENSYM-LIST :ENSURE-FUNCTION
-                                         :CURRY :MAXF :ONCE-ONLY :RCURRY
+                                         :CURRY :ENSURE-GETHASH :ENSURE-LIST
+                                         :MAXF :ONCE-ONLY :RCURRY
                                          :WITH-OPEN-FILE* :WITH-INPUT-FROM-FILE
                                          :READ-FILE-INTO-STRING :MKSTR :SYMB
                                          :STRING-DESIGNATOR :WITH-GENSYMS))))
@@ -85,6 +86,23 @@ it is called with to `function`."
          (declare (optimize (speed 3) (safety 1) (debug 1)))
          (lambda (&rest more)
            (apply ,fun ,@curries more)))))
+  
+
+  (defmacro ensure-gethash (key hash-table &optional default)
+    "Like `gethash`, but if `key` is not found in the `hash-table` saves the `default`
+under key before returning it. Secondary return value is true if key was
+already in the table."
+    `(multiple-value-bind (value ok) (gethash ,key ,hash-table)
+       (if ok
+           (values value ok)
+           (values (setf (gethash ,key ,hash-table) ,default) nil))))
+  
+
+  (defun ensure-list (list)
+    "If `list` is a list, it is returned. Otherwise returns the list designated by `list`."
+    (if (listp list)
+        list
+        (list list)))
   
 
   (define-modify-macro maxf (&rest numbers) max
@@ -254,7 +272,8 @@ unique symbol the named variable will be bound to."
     `(with-gensyms ,names ,@forms))
   
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (export '(alist-plist plist-alist curry maxf once-only rcurry
-            read-file-into-string symb with-gensyms with-unique-names)))
+  (export '(alist-plist plist-alist curry ensure-gethash ensure-list maxf
+            once-only rcurry read-file-into-string symb with-gensyms
+            with-unique-names)))
 
 ;;;; END OF quickutils.lisp ;;;;

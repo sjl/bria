@@ -73,16 +73,29 @@
 
 
 ;;;; Rate-Limiting ------------------------------------------------------------
-(defmacro define-rate-limited-function ((name seconds) arglist &body body)
-  (let ((cache (symb '* name '-rate-limiter*)))
-    `(progn
-       (defvar ,cache (make-cache ,seconds))
-       (defun ,(symb name '-ready-p) ()
-         (not (cachedp ,cache t)))
-       (defun ,name ,arglist
-         (if (cachedp ,cache t)
-          (values)
-          (cache-set! ,cache t (progn ,@body)))))))
+(defvar *rate-limiters* (make-hash-table ))
+
+(defun make-rate-limiter (ttl-seconds)
+  (make-cache ttl-seconds))
+
+(defun rate-limiter-ready-p (rate-limiter)
+  (not (cachedp rate-limiter t)))
+
+(defun rate-limiter-mark (rate-limiter)
+  (cache-set! rate-limiter t t))
+
+(defun clear-rate-limiters ()
+  (clrhash *rate-limiters*))
+
+(defmacro rate-limit (timeout-and-options &body body)
+  (destructuring-bind (seconds &key default (id (gensym))) (ensure-list timeout-and-options)
+    (with-gensyms (rate-limiter)
+      `(let ((,rate-limiter (ensure-gethash ,id *rate-limiters*
+                                            (make-rate-limiter ,seconds))))
+         (if (rate-limiter-ready-p ,rate-limiter)
+           (progn (rate-limiter-mark ,rate-limiter)
+                  ,@body)
+           ,default)))))
 
 
 ;;;; Credentials --------------------------------------------------------------
@@ -150,7 +163,8 @@
                  (current-temperature 14604))))
 
 (defun reply-reload ()
-  (if (reload-ready-p)
+  (if (rate-limit (30 :id :reloading)
+        (reload))
     (progn (reply "Hang on...")
            (reload)
            (reply "Done."))
@@ -190,6 +204,5 @@
 
 
 ;;;; Reload -------------------------------------------------------------------
-(define-rate-limited-function (reload 30) ()
-  (ql:quickload :bria)
-  t)
+(defun reload ()
+  (ql:quickload :bria))

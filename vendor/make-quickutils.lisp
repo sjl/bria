@@ -6,6 +6,8 @@
 
                :alist-plist
                :curry
+               :ensure-gethash
+               :ensure-list
                :maxf
                :once-only
                :rcurry
